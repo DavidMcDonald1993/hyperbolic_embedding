@@ -1,6 +1,5 @@
 
 library("devtools")
-
 library("NetHypGeom")
 
 net <- ps_model(N = 500, avg.k = 10, gma = 2.0, Temp = 0.01)
@@ -47,24 +46,17 @@ plot(net$polar$theta, hm$polar$theta, pch = 16,
 plot(net$polar$theta, lh$polar$theta, pch = 16, 
      xlab = "Real angles", ylab = "Inferred angles", main = "LaBNE+HM")
 
-lh$polar$theta
-
-plot(net$polar$theta, sapply(1:500, function(i) 2 * pi * i / 500), pch = 16, 
-     xlab = "Real angles", ylab = "Inferred angles", main = "LaBNE+HM")
-
 plot_hyperbolic_net(network = lh$network, nodes = lh$polar, node.colour = lh$polar$theta)
 
-zach <- graph("Zachary") # the Zachary karate club
+G <- read_graph("embedded_karate.gml", format = "gml")
+plot(G, vertex.size=10)
 
-plot(zach, vertex.size=10)
+fit_power_law(degree(G))
 
-lh_zachary <- labne_hm(net = zach, gma = 2.3, Temp = 0.15, k.speedup = 10, w = pi/12)
+lh <- labne_hm(net = G, Temp = 0.15, k.speedup = 10)
+plot_hyperbolic_net(network = lh$network, nodes = lh$polar, node.colour = lh$polar$theta)
 
-plot_hyperbolic_net(network = lh_zachary$network, nodes = lh_zachary$polar, node.colour = lh_zachary$polar$theta)
-
-lh_zachary
-
-polar <- lh_zachary$polar
+polar <- lh$polar
 
 distances <- sapply(1:nrow(polar), function(i) {
     sapply(1:nrow(polar), function(j) {
@@ -75,37 +67,19 @@ distances <- sapply(1:nrow(polar), function(i) {
 clusters <- hclust(as.dist(distances))
 plot(clusters, xlab = "Nodes")
 
-cutree(clusters, k = c(2))
-
-kmea <- kmeans(as.dist(distances), 2)
-
-kmea$cluster
-
-actual_assignments <- data.frame(1:34, c(1,1,1,1,1,1,1,1,1,2,1,1,1,1,2,2,1,1,2,1,2,1,2,2,2,2,2,2,2,2,2,2,2,2))
-
-pred_assignments <- data.frame(1:34, kmea$cluster)
+assignments <- cutree(clusters, k = c(2))
 
 library(NMI)
 
-NMI(actual_assignments, pred_assignments)
+real_labels <- data.frame(nodes=V(G)$id, labels=V(G)$club)
+predicted_labels <- data.frame(nodes=V(G)$id, labels=assignments)
 
-shortest_paths <- distances(zach)
+NMI(real_labels, predicted_labels)
 
-mst <- minimum.spanning.tree(zach)
+kmea <- kmeans(as.dist(distances), 2)
 
-mst_shortest_paths <- distances(zach)
+kmeans_predicted_labels <- data.frame(nodes=V(G)$id, labels=kmea$cluster)
 
-shortest_paths
-
-all(mst_shortest_paths == shortest_paths)
-
-dd <- read.table("reactome_edgelist.txt")
-gg <- graph.data.frame(dd, directed=FALSE)
-
-gg_mst <- minimum.spanning.tree(gg)
-dist <- distances(gg)
-gg_mst_dist <- distances(gg_mst)
-
-all(dist == gg_mst_dist)
+NMI(real_labels, kmeans_predicted_labels)
 
 

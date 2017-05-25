@@ -62,11 +62,15 @@ mce <- function(x, n, centring){
 
 # dd <- read.table("Uetz_screen.txt")
 # G <- graph.data.frame(dd, directed=FALSE)
-# G <- graph("Zachary")
-G <- read_graph("embedded_network_69.gml", format="gml")
+G <- graph("Zachary")
+# G <- read_graph("embedded_network_69.gml", format="gml")
 G_decomposed <- decompose(G)
 G <- G_decomposed[[which.max(sapply(G_decomposed, function(i) length(V(i))))]]
 G <- simplify(G)
+
+?cluster_edge_betweenness
+
+plot(cluster_fast_greedy(G, ), G)
 
 A <- as.matrix(as_adj(G))
 

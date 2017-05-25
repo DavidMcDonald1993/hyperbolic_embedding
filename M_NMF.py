@@ -16,33 +16,33 @@ from sklearn.metrics import pairwise_distances
 get_ipython().system(u'ls | grep gml')
 
 
-# In[5]:
+# In[284]:
 
 # start with karate club graph
-# G = nx.karate_club_graph()
-G = nx.read_gml("embedded_football.gml")
+G = nx.karate_club_graph()
+# G = nx.read_gml("dolphins_labelled.gml")
 # G = nx.read_edgelist("reactome_edgelist.txt")
 G = max(nx.connected_component_subgraphs(G), key=len)
 
 
-# In[21]:
+# In[285]:
 
 # parameters 
 eta = 5
-alpha = 1
-beta = 1
+alpha = 1e0
+beta = 1e0
 lam = 1e8
 
 eps = 1e-8
 
 # dimension of embedding
-m = 50
+m = 10
 
 # number of communities
 k = 50
 
 
-# In[22]:
+# In[286]:
 
 # a priori information about network
 
@@ -72,11 +72,11 @@ B1 = np.array([[(degrees[i] * degrees[j]) / (2 * e) for j in range(N)] for i in 
 B = A - B1
 
 
-# In[23]:
+# In[293]:
 
 # initialise matrices 
 
-w = 1
+w = 1e0
 
 # basis matrix
 M = np.random.rand(N, m) * w
@@ -91,7 +91,7 @@ H = np.random.rand(N, k) * w
 C = np.random.rand(k, m) * w
 
 
-# In[24]:
+# In[294]:
 
 # parameter updates
 
@@ -204,19 +204,19 @@ for i in range(num_iter):
     
 
 
-# In[25]:
+# In[295]:
 
 get_ipython().magic(u'matplotlib inline')
 import matplotlib.pyplot as plt
 
 
-# In[26]:
+# In[296]:
 
 print scores[0]
 print scores[-1]
 
 
-# In[27]:
+# In[297]:
 
 plt.plot(range(num_iter), similarities)
 plt.plot(range(num_iter), communities)
@@ -224,89 +224,76 @@ plt.plot(range(num_iter), modularities)
 plt.plot(range(num_iter), scores)
 
 
-# In[28]:
+# In[298]:
 
 fig, ax = plt.subplots(figsize=(15, 15))
 
-nodes = np.array(G.nodes())
+# nodes = np.array(G.nodes())
 
-# for x, y, n in zip(U[:,0], U[:,1], G.nodes()):
-#     ax.annotate(n, xy = (x, y), xytext=(x, y))
-# for n1, n2 in G.edges():
-#     i, = np.where(nodes == n1)
-#     j, = np.where(nodes == n2)
-#     ax.plot(U[(i, j), 0], U[(i, j), 1], c="k")
+# # for x, y, n in zip(U[:,0], U[:,1], G.nodes()):
+# #     ax.annotate(n, xy = (x, y), xytext=(x, y))
+# # for n1, n2 in G.edges():
+# #     i, = np.where(nodes == n1)
+# #     j, = np.where(nodes == n2)
+# #     ax.plot(U[(i, j), 0], U[(i, j), 1], c="k")
 
 ax.scatter(U[:,0], U[:,1])    
 
 
-# In[29]:
+# In[299]:
 
 D = pairwise_distances(U)
 
 
-# In[30]:
+# In[300]:
 
-plt.scatter(S[0], D[0])
+fig, ax = plt.subplots(figsize=(15, 15))
+
+ax.scatter(S[0], D[0])
+plt.xlabel("Similarity")
+plt.ylabel("Distance")
 
 
-# In[31]:
+# In[301]:
 
 from scipy.stats import pearsonr
 
 np.array([pearsonr(S[i], D[i])[0] for i in range(len(S))]).mean()
 
 
-# In[32]:
+# In[302]:
 
 from sklearn.cluster import KMeans
 
 
-# In[33]:
+# In[303]:
 
-kmeans = KMeans(n_clusters=13, max_iter=10000)
+kmeans = KMeans(n_clusters=2, max_iter=10000)
 
 
-# In[34]:
+# In[304]:
 
 kmeans.fit(U)
 
 
-# In[35]:
+# In[305]:
 
 kmeans_pred = kmeans.predict(U)
 
 
-# In[37]:
+# In[309]:
 
-true_labels = nx.get_node_attributes(G, "value").values()
+true_labels = nx.get_node_attributes(G, "club").values()
 
 
-# In[38]:
+# In[310]:
 
 from sklearn.metrics import normalized_mutual_info_score
 
 
-# In[39]:
+# In[311]:
 
 normalized_mutual_info_score(true_labels, kmeans_pred)
-
-
-# In[23]:
-
-from sklearn.manifold import SpectralEmbedding
-
-
-# In[24]:
-
-sp = SpectralEmbedding(n_components=2)
-
-
-# In[25]:
-
-G = nx.read_edgelist("Uetz_screen.txt")
-G = max(nx.connected_component_subgraphs(G), key=len)
-A = nx.adjacency_matrix(G)
 
 
 # In[ ]:
