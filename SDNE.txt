@@ -15,7 +15,9 @@ sdne = SDNE(d=2, beta=1, alpha=1e-2, nu1=1e-3, nu2=1e-3, K=2, n_units=[256,],
 # Load graph
 # G = graph_util.loadGraph('gem/data/karate.edgelist')
 # G = nx.karate_club_graph().to_directed()
-G = nx.read_gml("embedded_football.gml").to_directed()
+# G = nx.read_gml("embedded_football.gml").to_directed()
+G = nx.read_edgelist("Uetz_screen.txt")
+G = max(nx.connected_component_subgraphs(G), key=len).to_directed()
 
 # second level similarity
 S1 = np.array(nx.adj_matrix(G).todense())
@@ -36,10 +38,8 @@ Y, t = sdne.learn_embedding(G, edge_f=None, is_weighted=True, no_python=True)
 %matplotlib inline
 import matplotlib.pyplot as plt
 
-nx.get_node_attributes(G, "value").values()
-
 plt.figure(figsize=(15, 15))
-plt.scatter(Y[:, 0], Y[:, 1], c=nx.get_node_attributes(G, "value").values(), s=100)
+plt.scatter(Y[:, 0], Y[:, 1], c="k", s=100)
 
 Y
 

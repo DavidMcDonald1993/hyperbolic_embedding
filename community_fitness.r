@@ -1,6 +1,7 @@
 
 library(igraph)
 library(proxy)
+library(NMI)
 
 community_fitness <- function(A_G, A_H, alpha) {
     
@@ -94,32 +95,26 @@ greedy_community_search <- function(A_G, alpha=1.0, num_communities=100, overlap
                 best_neighbour <- names(neighbour_fitnesses)[which.max(neighbour_fitnesses)]
                 # create new adjacency matrix for H
                 A_H <- A_G[c(rownames(A_H), best_neighbour), c(colnames(A_H), best_neighbour)]
-            } else {
-                # No neighbour has positive fitness 
-                # TERMINATE
-                break
-            }
-
-            while (TRUE){
+            } else break # No neighbour has positive fitness 
                 
-                # continuously evaluate fitness of all nodes in H and remove nodes with negative fitness
+            # continuously evaluate fitness of all nodes in H and remove nodes with negative fitness
+            node_fitnesses <- sapply(rownames(A_H), function(v) node_fitness(A_G, A_H, alpha, v)) 
+
+            while (any(node_fitnesses <= 0)){
+                
+                # remove all nodes with negative fitness
+                A_H_new <- as.matrix(A_G[rownames(A_H)[node_fitnesses > 0], colnames(A_H)[node_fitnesses > 0]])
+                rownames(A_H_new) <- rownames(A_H)[node_fitnesses > 0]
+                colnames(A_H_new) <- colnames(A_H)[node_fitnesses > 0]
+
+                # update A_H
+                A_H <- A_H_new
+
+                # break if only one node
+                if (length(rownames(A_H)) == 1) break
+                    
+                # recalulate node fitnesses    
                 node_fitnesses <- sapply(rownames(A_H), function(v) node_fitness(A_G, A_H, alpha, v)) 
-
-                if (any(node_fitnesses < 0)){
-
-                    # remove all nodes with negative fitness
-                    A_H_new <- as.matrix(A_G[rownames(A_H)[node_fitnesses >= 0], colnames(A_H)[node_fitnesses >= 0]])
-                    rownames(A_H_new) <- rownames(A_H)[node_fitnesses >= 0]
-                    colnames(A_H_new) <- colnames(A_H)[node_fitnesses >= 0]
-
-                    # update A_H
-                    A_H <- A_H_new
-
-                    # continue if only one node
-                    if (length(rownames(A_H)) == 1) break
-
-                } else break # all nodes have positive fitness
-
                 
             } 
                     
@@ -132,7 +127,6 @@ greedy_community_search <- function(A_G, alpha=1.0, num_communities=100, overlap
         if (any(sapply(communities, function(com) all(rownames(A_H)%in%com)))) break
             
         # assign all nodes in A_H to this community
-#         communities[rownames(A_H)] <- community
         communities[[community]] <- rownames(A_H)
                     
         # mark each node in this community as assigned
@@ -163,12 +157,12 @@ greedy_community_search <- function(A_G, alpha=1.0, num_communities=100, overlap
 
 increment_consensus_matrix <- function(consensus_matrix, community_list) {
 
+    # iterate over list of communities
     for (community in community_list) {
         
-        # nodes assigned to this community
         if(length(community) == 0) next
             
-        # iterate over pairs of these nodes and increase weight in consensus matrix
+        # iterate over pairs of nodes and increase the pairwise weight in consensus matrix
         for (i in 1:length(community)) {
             n_1 <- community[i]
             for (j in i:length(community)) {
@@ -187,14 +181,15 @@ increment_consensus_matrix <- function(consensus_matrix, community_list) {
 }
 
 adjacency_matrix_to_consensus_matrix <- function(A_G, alpha=1.0, 
-                                                 num_repeats=100, num_communities=100, overlaps_allowed=TRUE) {
+                                                 num_repeats=100, num_communities=100, 
+                                                 overlaps_allowed=TRUE, normalise=FALSE, filter="50%") {
     
     # run algorithm num_repeats times
-    community_assignments <- sapply(1:num_repeats, function(i) 
+    community_assignments <- lapply(1:num_repeats, function(i) 
         greedy_community_search(A_G, alpha=alpha, num_communities=num_communities, overlaps_allowed=overlaps_allowed))
     
     # convert to consensus matrix
-    # initialise consesnsus matrix
+    # initialise consensus matrix
     consensus_matrix <- matrix(0, nrow=nrow(A_G), ncol=ncol(A_G))
     rownames(consensus_matrix) <- rownames(A_G)
     colnames(consensus_matrix) <- colnames(A_G)
@@ -204,83 +199,145 @@ adjacency_matrix_to_consensus_matrix <- function(A_G, alpha=1.0,
         consensus_matrix <- increment_consensus_matrix(consensus_matrix, community_assignment)
     }
         
-    # remove any nodes not assigned to community
-#     assigned_nodes <- rownames(consensus_matrix)[apply(consensus_matrix, 1, function(row) any(row > 0))]
-#     consensus_matrix <- consensus_matrix[assigned_nodes, assigned_nodes]
-        
-    # normalise
-#     consensus_matrix <- consensus_matrix / max(consensus_matrix)
+    # normalisation 
+    if (normalise) {
+        consensus_matrix <- consensus_matrix / num_repeats
+    }    
+    
+    # filter consensus matrix
+    consensus_matrix[consensus_matrix < quantile(consensus_matrix)[filter]] <- 0
         
     return(consensus_matrix)
 }
 
 # read in graph
-G <- read.graph("embedded_yeast_uetz.gml", "gml")
+G <- read.graph("dolphins_labelled.gml", "gml")
 
 # weight by similarity
 S1 <- as.matrix(as_adj(G))
 S2 <- 1 - as.matrix(dist(S1, method = "cosine"))
 
 # weighting of similarity
-w1 <- 5
+w1 <- 0
 
 # create weighted adjacancy matrix
 A_G <- S1 + w1 * S2
 rownames(A_G) <- V(G)
 colnames(A_G) <- V(G)
 
+# normalise similarity matrix
+A_G <- A_G / max(A_G)
+
 heatmap(A_G)
 
-# resolution parameter
-alpha <- 1.0
+# resolution parameter(s)
+alphas <- c(1.2, 1.0, 0.8)
+
+# number of repeats
+num_repeats <- 1
+
+# number of iterations
+num_iter <- 25
 
 # filtering
-tau <- 0.0
+tau <- 0.1
+
+# weight decay
+lambda <- 0.99
 
 # convert to consensus matrix
 consensus_matrix <- A_G 
 
-# iterate until consensus matrix is all 1s and 0s
-# iter <- 0
-# while (iter < 2 && !all(consensus_matrix %in% c(0,1))) {
-#     # obtain consensus matrix
-#     consensus_matrix <- adjacency_matrix_to_consensus_matrix(consensus_matrix, alpha=alpha, num_repeats = 10)
-#     # apply filtering
-#     consensus_matrix[consensus_matrix < tau] <- 0
-#     #increement iteration
-#     iter <- iter + 1
-# }
+iter <- 0
 
-# TODO: multiple scales simultaneously
-for (iter in 1:3) {
-    multi_scale_consensus_matrices <- lapply(c(0.8, 1.0, 1.2, 1.4), function(alpha)
-        adjacency_matrix_to_consensus_matrix(consensus_matrix, alpha=alpha, num_repeats = 10))   
+for (iter in 1:num_iter) {
+# while(!all(consensus_matrix %in% c(0,1))) {  
+    for (alpha in alphas) {
+            consensus_matrix <- lambda * consensus_matrix + 
+            (1 - lambda) * adjacency_matrix_to_consensus_matrix(consensus_matrix, 
+                                alpha=alpha, num_repeats = 1, overlaps_allowed=T,
+                                                            normalise = T, filter="75%")
+        }
         
-    consensus_matrix <- matrix(0, nrow=nrow(A_G), ncol=ncol(A_G))
-    for (mat in multi_scale_consensus_matrices) {
-        consensus_matrix <- consensus_matrix + mat
-    }
+        # filter 
+#         consensus_matrix[consensus_matrix < quantile(consensus_matrix)["75%"]] <- 0
+#         consensus_matrix[consensus_matrix < tau] <- 0
+        
+#     }
+    
+    # filter 
+#     consensus_matrix[consensus_matrix < quantile(consensus_matrix)["75%"]] <- 0
+    
+    # obtain consensus matrix for each resolution
+#     multi_scale_consensus_matrices <- lapply(alphas, function(alpha)
+#         adjacency_matrix_to_consensus_matrix(consensus_matrix, alpha=alpha, 
+#                                              num_repeats = num_repeats, overlaps_allowed = F, 
+#                                              normalise = F, filter="75%"))   
+        
+#     # initialise consensus matrix
+#     c_m <- matrix(0, nrow=nrow(A_G), ncol=ncol(A_G))
+#     rownames(c_m) <- rownames(A_G)
+#     colnames(c_m) <- colnames(A_G)
+#     # sum consensus matrices for all scales
+#     for (mat in multi_scale_consensus_matrices) {
+#         c_m <- c_m + mat
+#     }
+        
+#     # normalise consensus matrix
+#     c_m  <- c_m / (length(alphas) * num_repeats)
+
+#     #update consensus matrix
+#     consensus_matrix <- lambda * consensus_matrix + (1 - lambda) * c_m
+        
+#     # filter consensus matrix
+    
+#     tau <- quantile(consensus_matrix[consensus_matrix > 0])["50%"]
+#     consensus_matrix[consensus_matrix < tau] <- 0
+
+#     iter <- iter + 1
 }
 
-
-consensus_matrix
+# print(iter)
 
 heatmap(consensus_matrix)
 
-# cluster based on consensus matrix
-assignments <- greedy_community_search(consensus_matrix, alpha=alpha, overlaps_allowed = T)
+for (alpha in alphas) {
+    consensus_matrix <- lambda * consensus_matrix + 
+    (1 - lambda) * adjacency_matrix_to_consensus_matrix(consensus_matrix, 
+                                                        alpha=alpha, num_repeats = num_repeats, overlaps_allowed=T,
+                                                        normalise = T, filter="0%")
+    # filter 
+    consensus_matrix[consensus_matrix < quantile(consensus_matrix)["75%"]] <- 0
+#     consensus_matrix[consensus_matrix < tau] <- 0
+    
+}
+# consensus_matrix[consensus_matrix < quantile(consensus_matrix)["75%"]] <- 0
+heatmap(consensus_matrix)
 
-# convert back to ORF
-orfCommunities <- sapply(assignments, function(com) V(induced.subgraph(G, com))$label)
-orfCommunities
+# cluster based on consensus matrix
+communities <- greedy_community_search(consensus_matrix, alpha=0.8, overlaps_allowed = F)
+
+# invert (for NMI)
+assignments <- numeric(length = length(V(G)))
+names(assignments) <- V(G)
+
+for (i in 1:length(communities)) {
+    for (node in communities[[i]]) {
+        assignments[node] <- i
+    }
+}
+
+communities
 
 # plot G coloured by assignment 
 plot.igraph(G, vertex.color=assignments)
 
-library(NMI)
+df <- data.frame(nodes=V(G)$id, true=V(G)$club, pred=assignments)
 
-true_df <- data.frame(nodes=V(G)$id, true=V(G)$value)
-pred_df <- data.frame(nodes=V(G)$id, pred=assignments)
+df
+
+true_df <- data.frame(node_id=V(G)$id, module=V(G)$group)
+pred_df <- data.frame(node_id=V(G)$id, module=assignments)
 NMI(true_df, pred_df)$value
 
 library(topGO)
