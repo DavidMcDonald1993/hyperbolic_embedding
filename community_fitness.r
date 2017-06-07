@@ -62,7 +62,7 @@ greedy_community_search <- function(A_G, alpha=1.0, num_communities=100, overlap
     communities <- list()
     # discard isolated nodes
     connected_nodes <- rownames(A_G)[apply(A_G, 1, function(row) any(row > 0))]
-    # vector of whetehr each node has been asigned to at least oine community
+    # vector of whether each node has been asigned to at least oine community
     node_assigned <- rep(FALSE, length(connected_nodes))
     names(node_assigned) <- connected_nodes
     # initiliase community counter
@@ -147,8 +147,6 @@ greedy_community_search <- function(A_G, alpha=1.0, num_communities=100, overlap
         community <- community + 1
     }     
                                          
-     
-                                         
     #return community list
     return(communities)
 }
@@ -211,13 +209,13 @@ adjacency_matrix_to_consensus_matrix <- function(A_G, alpha=1.0,
 }
 
 # read in graph
-G <- read.graph("dolphins_labelled.gml", "gml")
+G <- read.graph("embedded_yeast_uetz.gml", "gml")
 
 # weight by similarity
 S1 <- as.matrix(as_adj(G))
 S2 <- 1 - as.matrix(dist(S1, method = "cosine"))
 
-# weighting of similarity
+# weighting of second order similarity
 w1 <- 0
 
 # create weighted adjacancy matrix
@@ -231,13 +229,13 @@ A_G <- A_G / max(A_G)
 heatmap(A_G)
 
 # resolution parameter(s)
-alphas <- c(1.2, 1.0, 0.8)
+alphas <- c(0.8, 1.0, 1.2)
 
 # number of repeats
 num_repeats <- 1
 
 # number of iterations
-num_iter <- 25
+num_iter <- 250
 
 # filtering
 tau <- 0.1
@@ -248,15 +246,13 @@ lambda <- 0.99
 # convert to consensus matrix
 consensus_matrix <- A_G 
 
-iter <- 0
-
 for (iter in 1:num_iter) {
 # while(!all(consensus_matrix %in% c(0,1))) {  
     for (alpha in alphas) {
             consensus_matrix <- lambda * consensus_matrix + 
             (1 - lambda) * adjacency_matrix_to_consensus_matrix(consensus_matrix, 
                                 alpha=alpha, num_repeats = 1, overlaps_allowed=T,
-                                                            normalise = T, filter="75%")
+                                                            normalise = T, filter="0%")
         }
         
         # filter 
@@ -301,21 +297,8 @@ for (iter in 1:num_iter) {
 
 heatmap(consensus_matrix)
 
-for (alpha in alphas) {
-    consensus_matrix <- lambda * consensus_matrix + 
-    (1 - lambda) * adjacency_matrix_to_consensus_matrix(consensus_matrix, 
-                                                        alpha=alpha, num_repeats = num_repeats, overlaps_allowed=T,
-                                                        normalise = T, filter="0%")
-    # filter 
-    consensus_matrix[consensus_matrix < quantile(consensus_matrix)["75%"]] <- 0
-#     consensus_matrix[consensus_matrix < tau] <- 0
-    
-}
-# consensus_matrix[consensus_matrix < quantile(consensus_matrix)["75%"]] <- 0
-heatmap(consensus_matrix)
-
 # cluster based on consensus matrix
-communities <- greedy_community_search(consensus_matrix, alpha=0.8, overlaps_allowed = F)
+communities <- greedy_community_search(consensus_matrix, alpha=1.0, overlaps_allowed = F)
 
 # invert (for NMI)
 assignments <- numeric(length = length(V(G)))
@@ -332,13 +315,11 @@ communities
 # plot G coloured by assignment 
 plot.igraph(G, vertex.color=assignments)
 
-df <- data.frame(nodes=V(G)$id, true=V(G)$club, pred=assignments)
-
-df
-
-true_df <- data.frame(node_id=V(G)$id, module=V(G)$group)
+true_df <- data.frame(node_id=V(G)$id, module=V(G)$club)
 pred_df <- data.frame(node_id=V(G)$id, module=assignments)
 NMI(true_df, pred_df)$value
+
+orfCommunities <- sapply(communities, function(com) vertex_attr(G, "label", com))
 
 library(topGO)
 library(GOSemSim)
@@ -346,10 +327,6 @@ library(GOSim)
 library(org.Sc.sgd.db)
 
 scGO <- godata(OrgDb = "org.Sc.sgd.db", keytype = "ORF", ont = "BP")
-
-overlaps <- sapply(orfCommunities, function(i) sapply(orfCommunities, function(j) length(intersect(i, j))))
-
-overlaps
 
 clusterSim <- mclusterSim(orfCommunities, semData = scGO)
 
