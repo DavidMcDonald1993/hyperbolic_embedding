@@ -48,12 +48,12 @@ plot(net$polar$theta, lh$polar$theta, pch = 16,
 
 plot_hyperbolic_net(network = lh$network, nodes = lh$polar, node.colour = lh$polar$theta)
 
-G <- read_graph("embedded_karate.gml", format = "gml")
+G <- as.undirected(read_graph("galFiltered.gml", format = "gml"))
 plot(G, vertex.size=10)
 
 fit_power_law(degree(G))
 
-lh <- labne_hm(net = G, Temp = 0.15, k.speedup = 10)
+lh <- labne_hm(net = G, Temp = 0.15, k.speedup = 10, gma = 3, w=0)
 plot_hyperbolic_net(network = lh$network, nodes = lh$polar, node.colour = lh$polar$theta)
 
 polar <- lh$polar

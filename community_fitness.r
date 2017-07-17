@@ -1,4 +1,6 @@
 
+library(RSpectra)
+
 library(igraph)
 library(proxy)
 library(NMI)
@@ -12,12 +14,12 @@ module_fitness <- function(community, sample=F) {
     k <- length(community)
     Z_A <- sum(z_score[community]) / sqrt(k)
     if (sample) return (Z_A)
-    return((Z_A - means[k]) / standard_deviatations[k])
+    return((Z_A - means[k]) / standard_deviations[k])
 }
 
 community_fitness <- function(A_G, community, alpha) {
     
-#     # edges in community
+    # edges in community
 #     c <- A_G[community, community]
 #     d_in <- sum(c[upper.tri(c, diag = T)])
     
@@ -29,9 +31,11 @@ community_fitness <- function(A_G, community, alpha) {
 #         stop()
 #     }
     
-#     return(d_in / (d_in + d_out) ** alpha)
-    
-    return(module_fitness(community))
+#     topological_fitness <- d_in / (d_in + d_out) ** alpha
+    active_module_fitness <- module_fitness(community, sample=T) 
+#     active_module_fitness <- sum(z_score[community]) / sum(z_score)
+
+    return(active_module_fitness)
 }
 
 community_neighbours <- function(A_G, community) {
@@ -61,10 +65,50 @@ node_fitness <- function(A_G, community, alpha, v) {
     
     if (length(community_remove) == 0) 
         fitness_remove <- 0 
-    else {
-        # fitness of community without v
+    else if (length(community_remove) < 3)    
         fitness_remove <- community_fitness(A_G, community_remove, alpha)
-    }
+    else {
+        
+        # fitness of community without v
+        # ensure connectedness of subgraph if v is removed
+#         H <- induced.subgraph(G, vids = V(G)[V(G)$label %in% community_remove])
+        
+        H <-A_G[community_remove, community_remove]
+        
+#         print(A)
+#         print(diag(rowSums(A)))
+        
+        
+#         L <- diag(rowSums(H)) - H 
+        
+#         if (!isSymmetric(L))
+#             stop("L is not symmetric")
+        
+#         print(L)
+            
+#         res <- eigs_sym(A = L, k = 2, sigma = 0, which = "LM", opts = list(retvec = F))
+            
+#         print(res)
+            
+#         print (res$values)
+            
+#         print (res$values[1])
+        
+        if (!is_connected(graph_from_adjacency_matrix(H)))
+#         if (res$values[1] < 1e-12)
+            fitness_remove <- 0
+        else
+            fitness_remove <- community_fitness(A_G, community_remove, alpha)
+        
+#         if (is_connected(H)) {
+#             fitness_remove <- community_fitness(A_G, community_remove, alpha)
+#         } else {
+#             components <- components(H)
+#             largest_component <- V(H)[components$membership == which.max(components$csize)]
+#             fitness_remove <- community_fitness(A_G, community_remove[largest_component], alpha)
+#         }    
+#         fitness_remove <- community_fitness(A_G, community_remove, alpha)
+    }  
     return(fitness_add - fitness_remove)
 }
     
@@ -78,18 +122,22 @@ probabilistic_neighbour_selection <- function(neighbour_fitnesses, random=F) {
     probs[probs < 0] <- 0
     probs <- probs / sum(probs)
         
+#     print(probs)
+        
     return(sample(names(probs), 1, prob = probs))
     
 }
 
-greedy_community_search <- function(A_G, alpha=1.0, max_iter=100, overlaps_allowed=TRUE, min_community_size=3) {
+greedy_community_search <- function(A_G, alpha=1.0, max_iter=100, 
+                                    overlaps_allowed=TRUE, consider_disconnected_nodes=FALSE, min_community_size=3) {
     
     # initialise list of communities dicovered
     communities <- list()
     # discard isolated nodes
-#     connected_nodes <- rownames(A_G)[apply(A_G, 1, function(row) any(row > 0))]
-    connected_nodes <- rownames(A_G)
-#     print(sprintf("connectd nodes: %s", connected_nodes))
+    if (!consider_disconnected_nodes)
+        connected_nodes <- rownames(A_G)[apply(A_G, 1, function(row) any(row > 0))]
+    else 
+        connected_nodes <- rownames(A_G)
     # vector of whether each node has been asigned to at least one community
     node_assigned <- rep(FALSE, length(connected_nodes))
     names(node_assigned) <- connected_nodes
@@ -98,8 +146,7 @@ greedy_community_search <- function(A_G, alpha=1.0, max_iter=100, overlaps_allow
     while (!all(node_assigned) && iter < max_iter) {
         
         #select random seed node from uncovered nodes
-        r <- sample(1:sum(!node_assigned), 1)
-        v <- names(node_assigned)[!node_assigned][r]
+        v <- sample(connected_nodes[!node_assigned], 1)
         
         # mark as assigned
         node_assigned[v] <- TRUE
@@ -136,7 +183,10 @@ greedy_community_search <- function(A_G, alpha=1.0, max_iter=100, overlaps_allow
 #                 best_neighbour <- names(neighbour_fitnesses)[which.max(neighbour_fitnesses)]
                 chosen_neighbour <- probabilistic_neighbour_selection(neighbour_fitnesses, random = T)
                 # add ot community
-                community <- c(community, best_neighbour)
+                community <- c(community, chosen_neighbour)
+                
+#                 print("ADDING TO COMMUNITY")
+#                 print(community)
                 
             } else break # no neighbour has positive fitness 
                 
@@ -144,6 +194,10 @@ greedy_community_search <- function(A_G, alpha=1.0, max_iter=100, overlaps_allow
             node_fitnesses <- sapply(community, function(v) node_fitness(A_G, community, alpha, v)) 
 
             while (any(node_fitnesses < 0)){
+                
+#                 print("REMOVING NODES")
+#                 print(node_fitnesses)
+#                 print(community[node_fitnesses<0])
                 
                 # remove all nodes with negative fitness
                 community <- community[node_fitnesses >= 0]
@@ -197,10 +251,13 @@ greedy_community_search <- function(A_G, alpha=1.0, max_iter=100, overlaps_allow
                 colnames(A_G) <- nodes_to_keep
             }           
         }
-        
+                    
         # increment iteration
         iter  <- iter + 1
-    }     
+    } 
+                                         
+    if (iter == max_iter) print("MAXIMIUM ITERATIONS RUN")
+    if (all(node_assigned)) print("ALL NODES ASSIGNED")
                                          
     #return community list
     return(communities)
@@ -312,34 +369,46 @@ genes <- V(G)$label[V(G)$label%in%names(z_score)]
 
 z_score <- z_score[genes]
 
-A <- as.matrix(as_adj(G))
-rownames(A) <- V(G)$label
-colnames(A) <- V(G)$label
+A_G <- as.matrix(as_adj(G))
+rownames(A_G) <- V(G)$label
+colnames(A_G) <- V(G)$label
 
-A <- A[genes, genes]
+# make symmetric 
+for (i in 1:nrow(A_G)) {
+    for (j in i:ncol(A_G)){
+        m <- max(A_G[i, j], A_G[j, i])
+        A_G[i, j] <- m
+        A_G[j, i] <- m
+    }
+}
 
-D <- diag(1/igraph::degree(G, mode="all"))
-rownames(D) <- V(G)$label
-colnames(D) <- V(G)$label
+A_G <- A_G[genes, genes]
 
-D <- D[genes, genes]
+# D <- diag(1/igraph::degree(G, mode="all"))
+# rownames(D) <- V(G)$label
+# colnames(D) <- V(G)$label
 
-L <- as.matrix(laplacian_matrix(G))
-rownames(L) <- V(G)$label
-colnames(L) <- V(G)$label
+# D <- D[genes, genes]
 
-L <- L[genes, genes]
+# L <- as.matrix(laplacian_matrix(G))
+# rownames(L) <- V(G)$label
+# colnames(L) <- V(G)$label
 
-# weight by similarity
-S1 <- A
-# S2 <- 1 - as.matrix(dist(S1, method = "cosine"))
-S2 <- 0
+# L <- L[genes, genes]
 
-# weighting of second order similarity
-w1 <- 0
+# walk matrix
+# W <- 0.5 * diag(nrow(A)) + 0.5 * A %*% D
 
-# create weighted adjacancy matrix
-A_G <- S1 + w1 * S2
+# # weight by similarity
+# S1 <- A
+# # S2 <- 1 - as.matrix(dist(S1, method = "cosine"))
+# S2 <- 0
+
+# # weighting of second order similarity
+# w1 <- 0
+
+# # create weighted adjacancy matrix
+# A_G <- S1 + w1 * S2
 # rownames(A_G) <- V(G)$label
 # colnames(A_G) <- V(G)$label
 
@@ -355,18 +424,18 @@ A_G <- S1 + w1 * S2
 # # normalise A_G
 # A_G <- A_G / max(A_G)
 
-k <- 50
-
-sample_fitnesses <- precompute_random_sample_fitnesses(A_G, num_repeats = 100, k = k)
-means <- apply(sample_fitnesses, 1, mean)
-names(means) <- 1:k
-standard_devations <- apply(sample_fitnesses, 1, sd)
-names(standard_devations) <- 1:k
-
 mean_file <- "means.rda"
 sd_file <- "sd.rda"
 
 if (!file.exists(mean_file)) {
+    
+    k <- 100
+
+    sample_fitnesses <- precompute_random_sample_fitnesses(A_G, num_repeats = 30, k = k)
+    means <- apply(sample_fitnesses, 1, mean)
+    names(means) <- 1:k
+    standard_deviations <- apply(sample_fitnesses, 1, sd)
+    names(standard_deviations) <- 1:k
     
     save(means, file=mean_file)
     save(standard_deviations, file=sd_file)
@@ -396,32 +465,36 @@ lambda <- 0
 # convert to consensus matrix
 consensus_matrix <- A_G 
 
-for (iter in 1:num_iter) {
+# consensus_matrix <- adjacency_matrix_to_consensus_matrix(consensus_matrix, alpha=1.0, 
+#                                              num_repeats = 10, max_iter = 100, overlaps_allowed = T, 
+#                                              normalise = T, filter="75%")   
+
+# for (iter in 1:num_iter) {
     
-    # obtain consensus matrix for each resolution
-    multi_scale_consensus_matrices <- lapply(alphas, function(alpha)
-        adjacency_matrix_to_consensus_matrix(consensus_matrix, alpha=alpha, 
-                                             num_repeats = num_repeats, overlaps_allowed = T, 
-                                             normalise = F, filter="0%"))   
+#     # obtain consensus matrix for each resolution
+#     multi_scale_consensus_matrices <- lapply(alphas, function(alpha)
+#         adjacency_matrix_to_consensus_matrix(consensus_matrix, alpha=alpha, 
+#                                              num_repeats = num_repeats, max_iter = 100, overlaps_allowed = T, 
+#                                              normalise = T, filter="0%"))   
         
-    # initialise consensus matrix
-    c_m <- matrix(0, nrow=nrow(A_G), ncol=ncol(A_G))
-    rownames(c_m) <- rownames(A_G)
-    colnames(c_m) <- colnames(A_G)
+#     # initialise consensus matrix
+#     c_m <- matrix(0, nrow=nrow(A_G), ncol=ncol(A_G))
+#     rownames(c_m) <- rownames(A_G)
+#     colnames(c_m) <- colnames(A_G)
         
-    # sum consensus matrices for all scales
-    for (mat in multi_scale_consensus_matrices) {
-        c_m <- c_m + mat
-    }
+#     # sum consensus matrices for all scales
+#     for (mat in multi_scale_consensus_matrices) {
+#         c_m <- c_m + mat
+#     }
         
-    # normalise consensus matrix
-    c_m  <- c_m / (length(alphas) * num_repeats)
+#     # normalise consensus matrix
+#     c_m  <- c_m / length(alphas)
 
-    # update consensus matrix
-    consensus_matrix <- lambda * consensus_matrix + (1 - lambda) * c_m
-}
+#     # update consensus matrix
+#     consensus_matrix <- lambda * consensus_matrix + (1 - lambda) * c_m
+# }
 
-heatmap(consensus_matrix)
+# heatmap(consensus_matrix)
 
 # cluster based on consensus matrix
 communities <- greedy_community_search(consensus_matrix, max_iter = 1000, 
@@ -445,10 +518,20 @@ communities
 
 lengths(communities)
 
-module_scores <- sapply(communities, function(com) module_fitness(com))
+module_scores <- sapply(communities, function(com) module_fitness(com, sample=T))
 module_scores
 
-plot.igraph(induced.subgraph(G, vids = V(G)[V(G)$label %in% communities[[12]]]),)
+corrected_module_scores <- sapply(communities, function(com) module_fitness(com, sample=F))
+corrected_module_scores
+
+nodes_to_plot <- V(G)[V(G)$label %in% communities[[which.max(corrected_module_scores)]]]
+plot.igraph(induced.subgraph(G, vids = nodes_to_plot),
+            
+#            vertex.size=z_score[V(G)[nodes_to_plot]$label], 
+           edge.label=NA,
+           vertex.color=factor(V(G)[nodes_to_plot]$label == "YML051W"))
+
+write(communities[[which.max(corrected_module_scores)]], "best_active_module.txt")
 
 # count intercommunity edges
 inter_community_edges <- function(A_G, c1, c2) {
@@ -483,42 +566,44 @@ diag(clusterSim) <- 0
 # filter out < 0.5
 clusterSim[clusterSim < 0.5] <- 0
 
+I <- graph_from_adjacency_matrix(clusterSim, mode = "undirected", weighted = T)
+
 # cluster network based on GO similairity
-go_communities <- greedy_community_search(clusterSim,
-                                          max_iter = 100, alpha=1.0, overlaps_allowed = F, min_community_size=0)
+# go_communities <- greedy_community_search(clusterSim,
+#                                           max_iter = 100, alpha=1.0, 
+#                                           overlaps_allowed = F, min_community_size=0)
+
+go_communities <- components(I)$membership
 
 go_communities
 
 # go_assignments <- go_assignments[rev(order(lengths(go_assignments)))]
 
-# reverse
-go_assignments <- numeric(length = length(communities))
-names(go_assignments) <- coms
-for (i in 1:length(go_communities)) {
-    for (com in go_communities[[i]]) {
-        go_assignments[com] <- i
-    }
-}
+# # reverse
+# go_assignments <- numeric(length = length(communities))
+# names(go_assignments) <- coms
+# for (i in 1:length(go_communities)) {
+#     for (com in go_communities[[i]]) {
+#         go_assignments[com] <- i
+#     }
+# }
 # go_assignments_ <- components(I)$membership
 
-go_assignments
+# go_assignments
 
-colors <- rainbow(length(go_communities))
-names(colors) <- 1:length(go_communities)
+colors <- rainbow(max(go_communities))
+names(colors) <- 1:max(go_communities)
 
 colors
 
-I <- graph_from_adjacency_matrix(clusterSim, mode = "undirected", weighted = T)
-
-plot.igraph(I, vertex.color=colors[go_assignments], edge.label=E(I)$weight)
+plot.igraph(I, vertex.color=colors[go_communities], edge.label=E(I)$weight)
 
 E <- graph_from_adjacency_matrix(edges, mode = "undirected", weighted = T)
 
-plot.igraph(E, vertex.size=lengths(communities), 
-            vertex.color=colors[go_assignments], edge.label=E(E)$weight)
+plot.igraph(E, vertex.color=colors[go_communities], edge.label=E(E)$weight)
 
 # plot some communities
-communities_of_interest <- c(which.max(module_scores))
+communities_of_interest <- c(10, 15, 2)
 nodes_of_interest <- unlist(communities[communities_of_interest])
 
 communities_of_interest
@@ -526,8 +611,35 @@ communities_of_interest
 node_ids <- V(G)[V(G)$label %in% nodes_of_interest]
 sub_G <- induced.subgraph(graph = G, vids = node_ids)
 plot.igraph(sub_G, 
-#             vertex.color=colors[go_assignments[assignments[nodes_of_interest]]])
-            vertex.color=assignments[nodes_of_interest], edge.label=E(sub_G)$weight)
+            vertex.color=colors[go_communities[assignments[nodes_of_interest]]],
+#             vertex.color=assignments[nodes_of_interest], 
+            edge.label=E(sub_G)$weight)
+
+library(ReactomePA)
+
+# convert ORFs to EntrezID
+
+conversion_table <- select(org.Sc.sgd.db, keys=keys(org.Sc.sgd.db), keytype="ORF", columns="ENTREZID")
+conversion <- conversion_table[,"ENTREZID"]
+names(conversion) <- conversion_table[,"ORF"]
+
+conversion <- conversion[!is.na(conversion)]
+
+x <- enrichPathway(gene = conversion[communities[[which.max(corrected_module_scores)]]], organism = "yeast")
+
+df <- as.data.frame(x)
+
+df
+
+translation_genes <- subset(df, Description=="Translation")[,"geneID"]
+translation_genes <- strsplit(translation_genes, "/")[[1]]
+
+metabolism_genes <- subset(df, Description=="Metabolism of carbohydrates")[,"geneID"]
+metabolism_genes <- strsplit(metabolism_genes, "/")[[1]]
+
+names(conversion)[which(conversion %in% translation_genes)]
+
+names(conversion)[which(conversion %in% metabolism_genes)]
 
 # initialise GoSim for most representative terms
 setEvidenceLevel(organism = org.Sc.sgdORGANISM, evidences = "all", gomap = org.Sc.sgdGO)
