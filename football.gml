@@ -1,3 +1,4 @@
+Creator "Mark Newman on Sat Jul 22 05:32:16 2006"
 graph
 [
   directed 0
@@ -945,11 +946,6 @@ graph
   [
     source 27
     target 1
-  ]
-  edge
-  [
-    source 27
-    target 17
   ]
   edge
   [
@@ -2408,11 +2404,6 @@ graph
   ]
   edge
   [
-    source 84
-    target 3
-  ]
-  edge
-  [
     source 85
     target 6
   ]
@@ -3020,11 +3011,6 @@ graph
   [
     source 99
     target 71
-  ]
-  edge
-  [
-    source 99
-    target 14
   ]
   edge
   [

@@ -1,0 +1,236 @@
+\documentclass{article}
+
+\usepackage{amsmath}
+
+\begin{document}
+	
+	$F$ Community assignments
+	
+	$M$ Community `centres'
+	
+	$X$ Attribute Matrix
+	
+	
+	\hrulefill
+	
+	The likelihood of observing $G$ represented by adjacency matrix $A$:
+	
+	\begin{align}
+	L_G &= \sum_{u,v} A_{uv} \log(P_{uv}) + (1 - A_{uv}) \log(1 - P_{uv}) 
+	\end{align}
+	
+	\hrulefill
+	
+	We write the likelihood as a function of a row $F_u$ of the community membership matrix $F$.
+	
+	\begin{align}
+	L_G(F_u) &= \sum_{v} A_{uv} \log(P_{uv}(F_u)) + (1 - A_{uv}) \log(1 - P_{uv}(F_u))
+	\end{align}
+	
+	We compute observation probabilities with a sigmoid function
+	
+	\begin{align}
+	P_{uv} &= \frac{1}{1 + exp(\frac{h_{uv}(F_u) - R_u}{2T})} \\
+	&= \sigma\bigg(\frac{R_u - h_{uv}(F_u)}{2T}\bigg)
+	\end{align}
+	
+	The current radius of the hyperbolic disk $R_u$ is given by
+	
+	\begin{align}
+	R_u = r_u - 2 \log \Bigg| \frac{2T(1 - \exp(-(1-\beta)\log(u))}{\sin(T\pi)m(1-\beta)}  \Bigg| 
+	\end{align}
+	
+	Hyperbolic distance between nodes $u$ and $v$ is given by
+	
+	\begin{align}
+	h_{uv}(F_u) &= \text{arccosh} \Bigg( \cosh r_u \cosh r_v - \sinh r_u \sinh r_v \cos(\Delta \theta_{uv}(F_u)) \Bigg)
+	\end{align}
+	
+	The change in angles is given by the hyperbolic law of cosines:
+	
+	\begin{align}
+	\Delta \theta_{uv}(F_u) = \pi - |\pi - |\theta_u(F_u) - \theta_v||
+	\end{align}
+	
+	We are defining theta to be a weighted mean of the centres of the communities that $u$ is assigned to.
+	
+	\begin{align}
+	\theta_u(F_u) = \frac{F_u M}{F_u \textbf{1}} = \frac{\sum_c F_{uc} M_c}{\sum_c F_{uc}}	
+	\end{align}
+	
+	\hrulefill
+	
+	\pagebreak
+	
+	In this section we compute the partial derivative of the likelihood with respect to $F_u$.
+	
+	\begin{align}
+	\frac{\partial L_G(F_u)}{\partial F_u} &= \sum_{v} \bigg[\frac{A_{uv}}{P_{uv}(F_u)} - \frac{1 - A_{uv}}{1 - P_{uv}(F_u)}\bigg] \frac{\partial P_{uv}(F_u)}{\partial F_u}
+	\end{align}
+	
+	The partial derivative of $P_{uv}$:
+	
+	\begin{align}
+	\frac{\partial P_{uv}(F_u)}{\partial F_u} &= - P_{uv} (1-P_{uv}) \frac{1}{2T} \frac{\partial h_{uv}(F_u)}{\partial F_u} 
+	\end{align}
+	
+	The partial derivative of hyperbolic distance:
+	
+	let:
+	\begin{align}
+	x = \cosh r_u \cosh r_v - \sinh r_u \sinh r_v \cos(\Delta \theta_{uv}(F_u)
+	\end{align}
+	then
+	\begin{align}
+	\frac{\partial h_{uv}(F_u)}{\partial F_u} &= \frac{1}{\sqrt{x^2 - 1}} \sinh r_u \sinh r_v \sin(\Delta \theta_{uv}(F_u)) \frac{\partial \Delta \theta_{uv}(F_u)}{\partial F_u} 
+	\end{align}
+	
+	Angle difference:
+	
+	\begin{align}
+	\frac{\partial \Delta \theta_{uv}(F_u)}{\partial F_u} = \text{Sign}(\pi - |\theta_u(F_u) - \theta_v|) * \text{Sign}(\theta_u(F_u) - \theta_v) *  \frac{\partial \theta_u(F_u)} {\partial F_u}
+	\end{align}
+	
+	Finally $\theta_u$ (using the quotient rule):
+	
+	\begin{align}
+	\frac{\partial \theta_u(F_u)}{\partial F_u} = \frac{(F_u \textbf{1})(\textbf{1}^{\text{T}} M) - (F_u M)(\textbf{1}^{\text{T}} \textbf{1})}{(F_u \textbf{1})^2}
+	\end{align}
+	
+	\hrulefill
+	
+	\pagebreak
+	
+	We repeat this process for a given community centre $M_c$, first by writing the likelihood as a function of $M_c$.
+	
+	\begin{align}
+	L_G(M_c) &= \sum_{uv} A_{uv} \log(P_{uv}(M_c)) + (1 - A_{uv}) \log(1 - P_{uv}(M_c))
+	\end{align}
+	\begin{align}
+	P_{uv}(M_c) &= \frac{1}{1 + exp(\frac{h_{uv}(M_c) - R_u}{2T})} \\
+	&= \sigma\bigg(\frac{R_u - h_{uv}(M_c)}{2T}\bigg)
+	\end{align}
+	\begin{align}
+	h_{uv}(M_c) &= \text{arcosh} \Bigg( \cosh r_u \cosh r_v - \sinh r_u \sinh r_v \cos(\Delta \theta_{uv}(M_c)) \Bigg)
+	\end{align}
+	\begin{align}
+	\Delta \theta_{uv}(M_c) = \pi - |\pi - |\theta_u(M_c) - \theta_v(M_c)||
+	\end{align}
+	\begin{align}
+	\theta_u(M_c) = \frac{\sum_{c`} F_{uc`} M_{c`}}{\sum_{c`} F_{uc`}} = \frac{ \sum_{c` \neq c} F_{uc'} M_{c'}}{\sum_{c'}F_{uc'}} + \frac{F_{uc} M_c}{\sum_{c'}F_{uc'}}
+	\end{align}
+	
+	$\theta_v$ is computed as $\theta_u$.
+	
+	\hrulefill
+	
+	Computing partial gradients for $M_c$:
+	
+	\begin{align}
+	\frac{\partial L_G(M_c)}{\partial M_c} &= \sum_{uv} \bigg[\frac{A_{uv}}{P_{uv}(M_c)} - \frac{1 - A_{uv}}{1 - P_{uv}(M_c)}\bigg] \frac{\partial P_{uv}(M_c)}{\partial M_c}
+	\end{align}
+	\begin{align}
+	\frac{\partial P_{uv}(M_c)}{\partial M_c} &= - P_{uv}(M_c) (1-P_{uv}(M_c)) \frac{1}{2T} \frac{\partial h_{uv}(M_c)}{\partial M_c} 
+	\end{align}
+	\begin{align}
+	\frac{\partial h_{uv}(M_c)}{\partial M_c} &= \frac{1}{\sqrt{x^2 - 1}} \sinh r_u \sinh r_v \sin(\Delta \theta_{uv}(M_c)) \frac{\partial \Delta \theta_{uv}(M_c)}{\partial M_c} 
+	\end{align}
+	\begin{align}
+	\frac{\partial \Delta \theta_{uv}(M_c)}{\partial M_c} = \text{sign}(\pi - |\theta_u(M_c) - \theta_v(M_c)|) \text{sign}(\theta_u(M_c) - \theta_v(M_c)) \bigg(\frac{\partial \theta_u(M_c)}{\partial M_c} - \frac{\partial \theta_v(M_c)}{\partial M_c}\bigg)
+	\end{align}
+	\begin{align}
+	\frac{\partial \theta_u(M_c)}{\partial M_c} = \frac{F_{uc}}{\sum_{c'}F_{uc`}} 
+	\end{align}
+	
+	Again, $\theta_v$ is computed as $\theta_u$.
+	
+	\hrulefill
+	
+	\pagebreak
+	
+	\hrulefill
+	
+	The likelihood of observing each attribute $X_{uk}$:
+	
+	\begin{align}
+	L_X &= \sum_{u,k} X_{uk} \log(Q_{uk}) + (1 - X_{uk}) \log(1 - Q_{uk})
+	\end{align}
+	
+	where 
+	
+	\begin{align}
+	Q_{uk} &= \frac{1}{1 + \exp(- \sum_c W_{kc} F_{uc})} \\
+	X_{uk} & \sim \text{Bernoulli}(Q_{uk}) 
+	\end{align}
+	
+	\hrulefill
+	
+	The likelihood written as a function of $F_u$:
+	
+	\begin{align}
+	L_X(F_u) &= \sum_{u,k} X_{uk} \log(Q_{uk}(F_u)) + (1 - X_{uk}) \log(1 - Q_{uk}(F_u))
+	\end{align}
+	
+	\hrulefill
+	
+	Trivially, we have that:
+	
+	\begin{align}
+	\frac{\partial L_X (F_u)}{\partial F_u} = \sum_k (X_{uk} - Q_{uk}) W_{kc}
+	\end{align}
+	
+	\hrulefill
+	
+	As a function of $W_{kc}$:
+	
+	\begin{align}
+	L_X(W_{kc}) &= \sum_{u,k} X_{uk} \log(Q_{uk}(W_{kc})) + (1 - X_{uk}) \log(1 - Q_{uk}
+	\end{align}
+	
+	\hrulefill
+	
+	Again:
+	
+	\begin{align}
+	\frac{\partial L_X (W_{kc})}{\partial W_{kc}} = (X_{uk} - Q_{uk}) F_{uc}
+	\end{align}
+	
+	\pagebreak
+	
+	
+	\hrulefill
+	
+	Giving us the update equation for $F_u$ as:
+	
+	\begin{align}
+	F_{u}^{\text{new}} =& \max\Bigg(0,  F_{u}^{\text{old}} + \alpha \Bigg(\frac{\partial L_G(F_u)}{\partial F_u} + \frac{\partial L_X(F_u)}{\partial F_u}\Bigg) \Bigg) \\
+	\frac{\partial L_G(F_u)}{\partial F_u} =& - \sum_{v} \frac{1}{2T} \Bigg(A_{uv} - P_{uv} \Bigg) \\
+	&\frac{1}{\sqrt{x^2 - 1}}\sinh r_u \sinh r_v \sin(\Delta \theta_{uv}(F_{uc})) *  \\
+	&\text{sign}(\pi - |\theta_u(F_{uc}) - \theta_v|) * \text{sign}(\theta_u(F_{u}) - \theta_v) \\
+	&\frac{(F_u \textbf{1})(\textbf{1}^{\text{T}} M) - (F_u M)(\textbf{1}^{\text{T}} \textbf{1})}{(F_u \textbf{1})^2} \\
+	\frac{\partial L_X(F_u)}{\partial F_u} &= \sum_k (X_{uk} - Q_{uk}) W_{kc}
+	\end{align}
+	
+	\hrulefill
+	
+	Giving us the update equation for $M_c$ as:
+	
+	\begin{align}
+	M_{c}^{\text{new}} =& M_c^{\text{old}} + \alpha \frac{\partial L_G(M_c)}{\partial M_c} \\
+	=& M_c^{\text{old}} - \alpha \sum_{uv} \frac{1}{2T} \Bigg(A_{uv} - P_{uv} \Bigg) \\
+	&\frac{1}{\sqrt{x^2 - 1}}\sinh r_u \sinh r_v \sin(\Delta \theta_{uv}(M_c)) * \\
+	&\text{sign}(\pi - |\theta_u(M_c) - \theta_v(M_c)|) * \text{sign}(\theta_u(M_c) - \theta_v(M_c)) \\
+	&\bigg(\frac{F_{uc}}{\sum_{c'}F_{uc`}} - \frac{F_{vc}}{\sum_{c'}F_{vc`}} \bigg) 
+	\end{align}
+	
+	\hrulefill
+	
+	Giving us the update equation for $W_{kc}$ as:
+	
+	\begin{align}
+	W_{kc}^{\text{new}} &= W_{kc}^{\text{old}} + \alpha \sum_u \frac{\partial F_X (W_{kc})}{\partial W_{kc}} - \lambda \text{sign}(W_{kc}) \\
+	& = W_{kc}^{\text{old}} + \alpha \sum_u (X_{uk} - Q_{uk}) F_{uc} - \lambda \text{sign}(W_{kc})
+	\end{align}
+		
+	
+\end{document}
